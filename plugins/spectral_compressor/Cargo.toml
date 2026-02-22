@@ -10,8 +10,8 @@ homepage = "https://github.com/robbert-vdh/nih-plug/tree/master/plugins/spectral
 crate-type = ["lib", "cdylib"]
 
 [dependencies]
-nih_plug = { path = "../../", features = ["assert_process_allocs", "standalone"] }
-nih_plug_vizia = { path = "../../nih_plug_vizia" }
+nih_plug = { git = "https://github.com/robbert-vdh/nih-plug", features = ["assert_process_allocs", "standalone"] }
+nih_plug_vizia = { git = "https://github.com/robbert-vdh/nih-plug", package = "nih_plug_vizia" }
 
 realfft = "3.0"
 
@@ -21,3 +21,12 @@ crossbeam = "0.8"
 open = "3.0"
 serde = { version = "1.0", features = ["derive"] }
 triple_buffer = "6.2"
+
+[profile.release]
+lto = "thin"
+strip = "symbols"
+
+[profile.profiling]
+inherits = "release"
+debug = true
+strip = "none"
