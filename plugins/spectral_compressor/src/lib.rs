@@ -163,8 +163,10 @@ impl Default for SpectralCompressor {
         let compressor_bank =
             compressor_bank::CompressorBank::new(analyzer_input_data, 2, MAX_WINDOW_SIZE);
 
+        let params = Arc::new(SpectralCompressorParams::new(&compressor_bank));
+
         SpectralCompressor {
-            params: Arc::new(SpectralCompressorParams::new(&compressor_bank)),
+            params,
 
             buffer_config: BufferConfig {
                 sample_rate: 1.0,
@@ -432,8 +434,24 @@ impl Plugin for SpectralCompressor {
         let output_gain = self.params.global.output_gain.value() * gain_compensation.sqrt();
         // TODO: Auto makeup gain
 
-        // This is mixed in later with latency compensation applied
+        // The delta flag is read early so we know whether to capture the input later.
+        let delta_mode = self.params.threshold.delta_switch.value();
+
+        // This is mixed in later with latency compensation applied. Write the dry audio
+        // first; the buffer still contains the unprocessed signal at this point so we can
+        // clone it afterwards without interfering with the write.
         self.dry_wet_mixer.write_dry(buffer);
+
+        // Clone original input from the delay line if required.  We use
+        // `peek_delayed` rather than `peek_recent` so that the dry samples
+        // are offset by the same latency the STFT introduces.  That way the
+        // delta signal remains perfectly in sync with the processed output.
+        let orig_input = if delta_mode {
+            let latency = self.stft.latency_samples() as usize;
+            Some(self.dry_wet_mixer.peek_delayed(buffer.samples(), latency))
+        } else {
+            None
+        };
 
         match self.params.threshold.mode.value() {
             compressor_bank::ThresholdMode::Internal => self.stft.process_overlap_add(
@@ -503,6 +521,29 @@ impl Plugin for SpectralCompressor {
             dry_wet_mixer::MixingStyle::Linear,
             self.stft.latency_samples() as usize,
         );
+
+        // delta mode parallel audio: when enabled we replace the normal output with a
+        // *delta* signal.  Instead of writing the processed result through, we subtract
+        // the captured dry input from the wet output on a per‑channel basis, yielding
+        // (processed - dry) for every channel.  This keeps the stereo field intact and
+        // gives a more useful indication of what changed while still remaining in a two‑
+        // channel layout.  The dry signal is captured early using the mixer so the two
+        // streams remain latency‑synchronised.
+        if delta_mode {
+            if let Some(orig) = orig_input {
+                let samples = buffer.samples();
+                let chans = buffer.channels();
+                let slices = buffer.as_slice();
+
+                for ch in 0..chans {
+                    for i in 0..samples {
+                        // compute difference instead of keeping one channel inverted and the
+                        // other wet; this provides full stereo delta.
+                        slices[ch][i] = slices[ch][i] - orig[ch][i];
+                    }
+                }
+            }
+        }
 
         ProcessStatus::Normal
     }

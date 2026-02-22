@@ -8,7 +8,9 @@ spectrum and morph one sound into another, and lots more.
 ![Screenshot](https://i.imgur.com/r6WfoYp.png)
 
 This is a port of https://github.com/robbert-vdh/spectral-compressor with more
-features and much better performance.
+features and much better performance.  A recent addition is a "Delta" switch that
+outputs a per‑channel difference signal (processed minus dry), which is useful for
+monitoring exactly what the compressor is doing in stereo.
 
 ## Download
 
@@ -23,6 +25,14 @@ Gatekeeper](https://disable-gatekeeper.github.io/) as Apple has recently made it
 more difficult to run unsigned code on macOS.
 
 ### Building
+
+### Delta mode
+
+When the Delta parameter is enabled the plugin no longer passes through the normal
+wet audio.  Instead it outputs `(processed - dry)` on each channel.  This keeps the
+stereo field intact while making it trivial to hear just the change introduced by
+the compressor.
+
 
 After installing [Rust](https://rustup.rs/), you can compile Spectral Compressor
 as follows:

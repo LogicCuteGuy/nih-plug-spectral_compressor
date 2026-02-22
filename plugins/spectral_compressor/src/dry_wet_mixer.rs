@@ -168,4 +168,55 @@ impl DryWetMixer {
             }
         }
     }
+
+    /// Return the most recently written dry samples for each channel. This is useful
+    #[allow(dead_code)]
+    /// for analyzing or comparing the input audio without holding a separate copy
+    /// in the host code. The returned vectors each have `samples` elements and
+    /// correspond to the channels in the buffer.
+    pub fn peek_recent(&self, samples: usize) -> Vec<Vec<f32>> {
+        if self.delay_line.is_empty() {
+            return Vec::new();
+        }
+        let delay_line_len = self.delay_line[0].len();
+        let read_pos = (self.next_write_position + delay_line_len - samples) % delay_line_len;
+        let num_before_wrap = samples.min(delay_line_len - read_pos);
+        let num_after_wrap = samples - num_before_wrap;
+
+        let mut out = vec![vec![0.0; samples]; self.delay_line.len()];
+        for (channel_out, channel_line) in out.iter_mut().zip(self.delay_line.iter()) {
+            channel_out[..num_before_wrap]
+                .copy_from_slice(&channel_line[read_pos..read_pos + num_before_wrap]);
+            channel_out[num_before_wrap..]
+                .copy_from_slice(&channel_line[..num_after_wrap]);
+        }
+        out
+    }
+
+    /// Like [`peek_recent`], but returns the dry samples that will be read back after a
+    /// given latency.  In other words, this peeks at the data that will be mixed into the
+    /// audio when `mix_in_dry` is called with the same `latency` argument.  This is
+    /// useful for producing latency‑matched delta signals, ensuring that the dry and wet
+    /// streams line up exactly.
+    pub fn peek_delayed(&self, samples: usize, latency: usize) -> Vec<Vec<f32>> {
+        if self.delay_line.is_empty() {
+            return Vec::new();
+        }
+        let delay_line_len = self.delay_line[0].len();
+        // same read position calculation as `mix_in_dry`
+        assert!(samples + latency <= delay_line_len);
+        let read_pos = (self.next_write_position + delay_line_len - samples - latency)
+            % delay_line_len;
+        let num_before_wrap = samples.min(delay_line_len - read_pos);
+        let num_after_wrap = samples - num_before_wrap;
+
+        let mut out = vec![vec![0.0; samples]; self.delay_line.len()];
+        for (channel_out, channel_line) in out.iter_mut().zip(self.delay_line.iter()) {
+            channel_out[..num_before_wrap]
+                .copy_from_slice(&channel_line[read_pos..read_pos + num_before_wrap]);
+            channel_out[num_before_wrap..]
+                .copy_from_slice(&channel_line[..num_after_wrap]);
+        }
+        out
+    }
 }

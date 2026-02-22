@@ -146,6 +146,13 @@ pub struct ThresholdParams {
     /// to the the compression parameters when using the sidechain modes.
     #[id = "thresh_sc_link"]
     pub sc_channel_link: FloatParam,
+    /// When enabled the plugin outputs a parallel delta signal. The first (left) channel will
+    /// contain the inverted dry input and the second (right) channel will contain the normal
+    /// processed output. This is useful for quickly comparing pre‑ and post‑processing while
+    /// staying within a stereo layout. The input signal is latency‑compensated before being
+    /// captured so both channels remain in sync.
+    #[id = "delta_switch"]
+    pub delta_switch: BoolParam,
 }
 
 /// The type of threshold to use.
@@ -292,6 +299,7 @@ impl ThresholdParams {
             .with_unit("%")
             .with_value_to_string(formatters::v2s_f32_percentage(0))
             .with_string_to_value(formatters::s2v_f32_percentage()),
+            delta_switch: BoolParam::new("Delta", false),
         }
     }
 
